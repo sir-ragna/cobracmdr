@@ -15,7 +15,7 @@ import (
 func main() {
 	var address = flag.String("a", "0.0.0.0", "address")
 	var port = flag.String("p", "2222", "port")
-	var fileName = flag.String("l", "goney.log", "output file")
+	var fileName = flag.String("l", "ssh-honeypot.log", "output file")
 	var toConsole = flag.Bool("console", false, "Don't log to a file")
 
 	flag.Parse()
@@ -27,12 +27,15 @@ func main() {
 			log.Fatal("Error opening logfile: ", err.Error())
 		}
 		defer logFile.Close()
+		log.Print("Logging to ", *fileName)
 		log.SetOutput(logFile)
 	}
 
-	// got bored, this needs error checking
 	_, keyBytes, _ := ed25519.GenerateKey(nil)
-	key, _ := ssh.NewSignerFromSigner(keyBytes)
+	key, err := ssh.NewSignerFromSigner(keyBytes)
+	if err != nil {
+		log.Fatal("Failed to generate new ssh key: ", err.Error())
+	}
 
 	serverConfig := &ssh.ServerConfig{
 		PasswordCallback: func(connection ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
@@ -47,6 +50,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to listen: ", err.Error())
 	}
+	log.Print("Started honeypot on: ", *address+":"+*port)
 	defer listener.Close()
 
 	for {
@@ -64,10 +68,10 @@ func handleConnection(conn net.Conn, serverConfig *ssh.ServerConfig) {
 	defer conn.Close()
 	_, channels, requests, err := ssh.NewServerConn(conn, serverConfig)
 	if err != nil {
-		log.Print("Failed to establish SSH connection.", err.Error())
+		log.Print("Failed to establish SSH connection. ", err.Error())
 		return
 	}
-	log.Print("Established SSH connection ", conn.RemoteAddr())
+	log.Print("Established SSH connection. ", conn.RemoteAddr())
 
 	go ssh.DiscardRequests(requests)
 
