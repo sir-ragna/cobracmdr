@@ -1,13 +1,17 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"flag"
 	"io"
 	"log"
 	"net"
 	"os"
+	"strings"
 
-	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -31,12 +35,6 @@ func main() {
 		log.SetOutput(logFile)
 	}
 
-	_, keyBytes, _ := ed25519.GenerateKey(nil)
-	key, err := ssh.NewSignerFromSigner(keyBytes)
-	if err != nil {
-		log.Fatal("Failed to generate new ssh key: ", err.Error())
-	}
-
 	serverConfig := &ssh.ServerConfig{
 		PasswordCallback: func(connection ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 			log.Print(connection.RemoteAddr(), " User: ", connection.User())
@@ -44,7 +42,30 @@ func main() {
 			return nil, nil
 		},
 	}
-	serverConfig.AddHostKey(key)
+
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		log.Fatal("Failed to generate new rsa key: ", err.Error())
+	}
+
+	log.Print("Private key: ", strings.ReplaceAll(
+		string(pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(rsaKey),
+		})), "\n", ""))
+
+	log.Print("Public key: ", strings.ReplaceAll(
+		string(pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: x509.MarshalPKCS1PublicKey(&rsaKey.PublicKey),
+		})), "\n", ""))
+
+	sshKey, err := ssh.NewSignerFromKey(rsaKey)
+	if err != nil {
+		log.Fatal("Failed to generate new ssh key: ", err.Error())
+	}
+
+	serverConfig.AddHostKey(sshKey)
 
 	listener, err := net.Listen("tcp", *address+":"+*port)
 	if err != nil {
