@@ -43,7 +43,7 @@ func main() {
 			return nil, nil
 		},
 		BannerCallback: func(connection ssh.ConnMetadata) string {
-			return "FLAG-102333\n"
+			return "This service is restricted to authorized users only.\n"
 		},
 	}
 
@@ -140,15 +140,15 @@ func handleChannel(newChannel ssh.NewChannel, conn net.Conn) {
 			if err == io.EOF {
 				channel.SendRequest("exit-status", false,
 					ssh.Marshal(struct{ Status uint32 }{0}))
-				log.Print("Exiting channel ", err.Error())
+				log.Print(conn.RemoteAddr(), " Exiting channel ", err.Error())
 				break
 			} else if err != nil {
-				log.Print("Error creating terminal ", err.Error())
+				log.Print(conn.RemoteAddr(), " Error creating terminal ", err.Error())
 				break
 			}
 			log.Print("[", conn.RemoteAddr(), "]$ ", line)
 		}
 	} else {
-		log.Print("Non session channel received.")
+		log.Print(conn.RemoteAddr(), " Non session channel received.")
 	}
 }
