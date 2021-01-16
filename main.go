@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"flag"
 	"io"
@@ -40,6 +41,9 @@ func main() {
 			log.Print(connection.RemoteAddr(), " User: ", connection.User())
 			log.Print(connection.RemoteAddr(), " Password: ", string(password))
 			return nil, nil
+		},
+		BannerCallback: func(connection ssh.ConnMetadata) string {
+			return "FLAG-102333\n"
 		},
 	}
 
@@ -113,6 +117,13 @@ func handleChannel(newChannel ssh.NewChannel, conn net.Conn) {
 
 	go func(channelRequests <-chan *ssh.Request) {
 		for request := range channelRequests {
+			log.Print(conn.RemoteAddr(), ":: request type: ", request.Type)
+			if request.Type == "exec" {
+				log.Print(conn.RemoteAddr(), ":: payload:\t", string(request.Payload))
+			} else {
+				str := base64.StdEncoding.EncodeToString(request.Payload)
+				log.Print(conn.RemoteAddr(), ":: payload b64:\t", str)
+			}
 			if request.WantReply {
 				err := request.Reply(true, nil)
 				if err != nil {
@@ -124,7 +135,6 @@ func handleChannel(newChannel ssh.NewChannel, conn net.Conn) {
 
 	if newChannel.ChannelType() == "session" {
 		term := terminal.NewTerminal(channel, "[CMDR@COBRA] $ ")
-		term.Write([]byte("Welcome back commander\n"))
 		for {
 			line, err := term.ReadLine()
 			if err == io.EOF {
