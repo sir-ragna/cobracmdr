@@ -8,16 +8,11 @@ RUN go get
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 
 # We start a new container
-FROM alpine:3.10 
+FROM scratch
+# Minimal go containers starting from scratch
+# https://rollout.io/blog/building-minimal-docker-containers-for-go-applications/
 
-#RUN apk --no-cache add ca-certificates
-
-WORKDIR /app
 COPY --from=builder /go/src/cobracmdr/main .
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-RUN chown -R appuser:appgroup /app
-
-USER appuser
 EXPOSE 2222
-CMD ["./main", "-console"]
+CMD ["/main", "-console"]
