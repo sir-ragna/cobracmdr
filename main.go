@@ -7,21 +7,32 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"regexp"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+func getIP(networkStr string) string {
+	portPattern := regexp.MustCompile(":\\d+$")
+	return portPattern.ReplaceAllString(networkStr, "")
+}
+
 func main() {
 	var address = flag.String("a", "0.0.0.0", "address")
 	var port = flag.String("p", "2222", "port")
 	var fileName = flag.String("l", "ssh-honeypot.log", "output file")
 	var toConsole = flag.Bool("console", false, "Don't log to a file")
+	var attempts = flag.Int64("attempts", 0, "Logging attempts to stop before allowing sign in. (-1 never)")
+
+	// Hold attempts per IP
+	var triesPerIP = make(map[string]int64)
 
 	flag.Parse()
 
@@ -38,8 +49,18 @@ func main() {
 
 	serverConfig := &ssh.ServerConfig{
 		PasswordCallback: func(connection ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			ipStr := getIP(connection.RemoteAddr().String())
+			if tries, exits := triesPerIP[ipStr]; exits {
+				triesPerIP[ipStr] = tries + 1
+			} else {
+				triesPerIP[ipStr] = 1
+			}
 			log.Print(connection.RemoteAddr(), " User: ", connection.User())
 			log.Print(connection.RemoteAddr(), " Password: ", string(password))
+			log.Print(connection.RemoteAddr(), " Attempts: ", triesPerIP[ipStr])
+			if *attempts == -1 || triesPerIP[ipStr] <= *attempts { // Always fail auth
+				return nil, fmt.Errorf("password rejected for %q", connection.User())
+			}
 			return nil, nil
 		},
 		BannerCallback: func(connection ssh.ConnMetadata) string {
