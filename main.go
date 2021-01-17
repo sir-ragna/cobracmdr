@@ -30,6 +30,7 @@ func main() {
 	var fileName = flag.String("l", "ssh-honeypot.log", "output file")
 	var toConsole = flag.Bool("console", false, "Don't log to a file")
 	var attempts = flag.Int64("attempts", 0, "Logging attempts to stop before allowing sign in. (-1 never)")
+	var banner = flag.String("banner", "Restricted to authorized users only.", "SSH pre-auth banner")
 
 	// Hold attempts per IP
 	var triesPerIP = make(map[string]int64)
@@ -64,7 +65,7 @@ func main() {
 			return nil, nil
 		},
 		BannerCallback: func(connection ssh.ConnMetadata) string {
-			return "This service is restricted to authorized users only.\n"
+			return *banner + "\n"
 		},
 	}
 
