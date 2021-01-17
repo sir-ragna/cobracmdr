@@ -58,7 +58,7 @@ func main() {
 			log.Print(connection.RemoteAddr(), " User: ", connection.User())
 			log.Print(connection.RemoteAddr(), " Password: ", string(password))
 			log.Print(connection.RemoteAddr(), " Attempts: ", triesPerIP[ipStr])
-			if *attempts == -1 || triesPerIP[ipStr] <= *attempts { // Always fail auth
+			if *attempts == -1 || triesPerIP[ipStr] < *attempts { // Always fail auth
 				return nil, fmt.Errorf("password rejected for %q", connection.User())
 			}
 			return nil, nil
