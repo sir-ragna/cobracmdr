@@ -19,6 +19,11 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// RFC 4254 Section 6.5.
+type execPayload struct {
+	Command string
+}
+
 func getIP(networkStr string) string {
 	portPattern := regexp.MustCompile(":\\d+$")
 	return portPattern.ReplaceAllString(networkStr, "")
@@ -141,7 +146,14 @@ func handleChannel(newChannel ssh.NewChannel, conn net.Conn) {
 		for request := range channelRequests {
 			log.Print(conn.RemoteAddr(), ":: request type: ", request.Type)
 			if request.Type == "exec" {
-				log.Print(conn.RemoteAddr(), ":: payload:\t", string(request.Payload))
+				var payload execPayload
+				if err := ssh.Unmarshal(request.Payload, &payload); err != nil {
+					log.Print("Failed to unmarshal exec payload", err)
+					str := base64.StdEncoding.EncodeToString(request.Payload)
+					log.Print(conn.RemoteAddr(), "::exec payload b64:\t", str)
+				} else {
+					log.Print(conn.RemoteAddr(), "::exec payload:\t", payload.Command)
+				}
 			} else {
 				str := base64.StdEncoding.EncodeToString(request.Payload)
 				log.Print(conn.RemoteAddr(), ":: payload b64:\t", str)
