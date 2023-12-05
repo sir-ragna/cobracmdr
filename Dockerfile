@@ -1,6 +1,7 @@
 FROM golang:latest as builder
 
 WORKDIR /go/src/cobracmdr
+COPY go.mod go.sum /go/src/cobracmdr/
 COPY main.go /go/src/cobracmdr/
 # https://www.callicoder.com/docker-golang-image-container-example/
 
