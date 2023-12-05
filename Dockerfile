@@ -1,4 +1,4 @@
-FROM golang:latest as builder
+FROM docker.io/golang:latest as builder
 
 WORKDIR /go/src/cobracmdr
 COPY go.mod go.sum /go/src/cobracmdr/
