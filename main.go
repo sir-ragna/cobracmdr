@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
+	terminal "golang.org/x/term"
 )
 
 // RFC 4254 Section 6.5.
