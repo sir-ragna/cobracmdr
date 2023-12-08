@@ -64,13 +64,18 @@ func main() {
 			log.Print(connection.RemoteAddr(), " User: ", connection.User())
 			log.Print(connection.RemoteAddr(), " Password: ", string(password))
 			log.Print(connection.RemoteAddr(), " Attempts: ", triesPerIP[ipStr])
-			if *attempts == -1 || triesPerIP[ipStr] < *attempts { // Always fail auth
-				return nil, fmt.Errorf("password rejected for %q", connection.User())
+
+			if *attempts == -1 || triesPerIP[ipStr] < *attempts { 
+				return nil, fmt.Errorf("password rejected for %q", connection.User()) // fail auth
 			}
-			return nil, nil
+			return nil, nil // accept password
 		},
 		BannerCallback: func(connection ssh.ConnMetadata) string {
 			return *banner + "\n"
+		},
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			log.Print("PublicKey auth attempt type:", key.Type())
+			return nil, nil; // always accept public key authentication
 		},
 	}
 
