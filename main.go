@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -65,7 +67,7 @@ func main() {
 			log.Print(connection.RemoteAddr(), " Password: ", string(password))
 			log.Print(connection.RemoteAddr(), " Attempts: ", triesPerIP[ipStr])
 
-			if *attempts == -1 || triesPerIP[ipStr] < *attempts { 
+			if *attempts == -1 || triesPerIP[ipStr] < *attempts {
 				return nil, fmt.Errorf("password rejected for %q", connection.User()) // fail auth
 			}
 			return nil, nil // accept password
@@ -75,33 +77,61 @@ func main() {
 		},
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 			log.Print("PublicKey auth attempt type:", key.Type())
-			return nil, nil; // always accept public key authentication
+			return nil, nil // always accept public key authentication
 		},
 	}
 
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		log.Fatal("Failed to generate new rsa key: ", err.Error())
-	}
+	{ // Generate and add RSA key
+		rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			log.Fatal("Failed to generate new rsa key: ", err.Error())
+		}
 
-	log.Print("Private key: ", strings.ReplaceAll(
-		string(pem.EncodeToMemory(&pem.Block{
-			Type:  "RSA PRIVATE KEY",
-			Bytes: x509.MarshalPKCS1PrivateKey(rsaKey),
-		})), "\n", ""))
+		log.Print("Private key: ", strings.ReplaceAll(
+			string(pem.EncodeToMemory(&pem.Block{
+				Type:  "RSA PRIVATE KEY",
+				Bytes: x509.MarshalPKCS1PrivateKey(rsaKey),
+			})), "\n", ""))
 
-	log.Print("Public key: ", strings.ReplaceAll(
-		string(pem.EncodeToMemory(&pem.Block{
-			Type:  "RSA PUBLIC KEY",
-			Bytes: x509.MarshalPKCS1PublicKey(&rsaKey.PublicKey),
-		})), "\n", ""))
+		log.Print("Public key: ", strings.ReplaceAll(
+			string(pem.EncodeToMemory(&pem.Block{
+				Type:  "RSA PUBLIC KEY",
+				Bytes: x509.MarshalPKCS1PublicKey(&rsaKey.PublicKey),
+			})), "\n", ""))
 
-	sshKey, err := ssh.NewSignerFromKey(rsaKey)
-	if err != nil {
-		log.Fatal("Failed to generate new ssh key: ", err.Error())
-	}
+		sshKey, err := ssh.NewSignerFromKey(rsaKey)
+		if err != nil {
+			log.Fatal("Failed to generate new RSA ssh key: ", err.Error())
+		}
 
-	serverConfig.AddHostKey(sshKey)
+		serverConfig.AddHostKey(sshKey)
+	} // end of RSA key generation
+
+	{ // Generate and add EC key
+		ecP224, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			log.Fatal("Failed to generate new rsa key: ", err.Error())
+		}
+
+		log.Print("Private key: ", strings.ReplaceAll(
+			string(pem.EncodeToMemory(&pem.Block{
+				Type:  "EC PRIVATE KEY",
+				Bytes: ecP224.X.Bytes(),
+			})), "\n", ""))
+
+		log.Print("Public key: ", strings.ReplaceAll(
+			string(pem.EncodeToMemory(&pem.Block{
+				Type:  "EC PUBLIC KEY",
+				Bytes: ecP224.PublicKey.X.Bytes(),
+			})), "\n", ""))
+
+		sshKey, err := ssh.NewSignerFromKey(ecP224)
+		if err != nil {
+			log.Fatal("Failed to generate new EC ssh key: ", err.Error())
+		}
+
+		serverConfig.AddHostKey(sshKey)
+	} // end of EC key generation
 
 	listener, err := net.Listen("tcp", *address+":"+*port)
 	if err != nil {
