@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -76,8 +77,8 @@ func main() {
 			return *banner + "\n"
 		},
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			log.Print("PublicKey auth attempt type:", key.Type())
-			return nil, nil // always accept public key authentication
+			log.Print("PublicKey auth attempt type: ", key.Type())
+			return nil, nil // accept any public key
 		},
 	}
 
@@ -107,10 +108,34 @@ func main() {
 		serverConfig.AddHostKey(sshKey)
 	} // end of RSA key generation
 
-	{ // Generate and add EC key
+	{ // Generate ed25519 key
+		ed25519PublicKey, ed25519PrivateKey, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			log.Fatal("Failed to generate a new ed25519 key: ", err.Error())
+		}
+		log.Print("Private key: ", strings.ReplaceAll(string(pem.EncodeToMemory(&pem.Block{
+			Type:  "ED25519 PRIVATE KEY",
+			Bytes: []byte(ed25519PrivateKey),
+		})), "\n", ""))
+
+		log.Print("Public key: ", strings.ReplaceAll(
+			string(pem.EncodeToMemory(&pem.Block{
+				Type:  "ED25519 PUBLIC KEY",
+				Bytes: []byte(ed25519PublicKey),
+			})), "\n", ""))
+
+		sshKey, err := ssh.NewSignerFromKey(ed25519PrivateKey)
+		if err != nil {
+			log.Fatal("Failed to generate new ed25519 ssh key: ", err.Error())
+		}
+
+		serverConfig.AddHostKey(sshKey)
+	} // end of ed25519 key generation
+
+	{ // Generate and add EC P256 key
 		ecP224, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
-			log.Fatal("Failed to generate new rsa key: ", err.Error())
+			log.Fatal("Failed to generate new EC P256 key: ", err.Error())
 		}
 
 		log.Print("Private key: ", strings.ReplaceAll(
@@ -127,11 +152,11 @@ func main() {
 
 		sshKey, err := ssh.NewSignerFromKey(ecP224)
 		if err != nil {
-			log.Fatal("Failed to generate new EC ssh key: ", err.Error())
+			log.Fatal("Failed to generate new EC P256 ssh key: ", err.Error())
 		}
 
 		serverConfig.AddHostKey(sshKey)
-	} // end of EC key generation
+	} // end of EC P256 key generation
 
 	listener, err := net.Listen("tcp", *address+":"+*port)
 	if err != nil {
@@ -155,7 +180,7 @@ func handleConnection(conn net.Conn, serverConfig *ssh.ServerConfig) {
 	defer conn.Close()
 	_, channels, requests, err := ssh.NewServerConn(conn, serverConfig)
 	if err != nil {
-		log.Print("Failed to establish SSH connection. ", err.Error())
+		log.Print(conn.RemoteAddr(), " Failed to establish SSH connection. ", err.Error())
 		return
 	}
 	log.Print("Established SSH connection. ", conn.RemoteAddr())
