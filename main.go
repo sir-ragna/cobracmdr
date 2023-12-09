@@ -195,6 +195,13 @@ func handleConnection(conn net.Conn, serverConfig *ssh.ServerConfig) {
 
 func handleChannel(newChannel ssh.NewChannel, conn net.Conn) {
 	log.Print("Channel type ", newChannel.ChannelType())
+
+	if newChannel.ChannelType() == "direct-tcpip" {
+		log.Print("Rejecting direct-tcpip channel from ", conn.RemoteAddr())
+		newChannel.Reject(ssh.Prohibited, "direct tcpip channels are not allowed")
+		return
+	}
+
 	channel, channelRequests, err := newChannel.Accept()
 	if err != nil {
 		log.Print("Failed to accept channel ", err.Error())
@@ -243,6 +250,6 @@ func handleChannel(newChannel ssh.NewChannel, conn net.Conn) {
 			log.Print("[", conn.RemoteAddr(), "]$ ", line)
 		}
 	} else {
-		log.Print(conn.RemoteAddr(), " Non session channel received.")
+		log.Print("Non session channel received from ", conn.RemoteAddr())
 	}
 }
