@@ -27,8 +27,9 @@ type execPayload struct {
 	Command string
 }
 
+var portPattern = regexp.MustCompile(`:\d+$`)
+
 func getIP(networkStr string) string {
-	portPattern := regexp.MustCompile(":\\d+$")
 	return portPattern.ReplaceAllString(networkStr, "")
 }
 
@@ -57,27 +58,27 @@ func main() {
 	}
 
 	serverConfig := &ssh.ServerConfig{
-		PasswordCallback: func(connection ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
-			ipStr := getIP(connection.RemoteAddr().String())
+		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			ipStr := getIP(conn.RemoteAddr().String())
 			if tries, exits := triesPerIP[ipStr]; exits {
 				triesPerIP[ipStr] = tries + 1
 			} else {
 				triesPerIP[ipStr] = 1
 			}
-			log.Print(connection.RemoteAddr(), " User: ", connection.User())
-			log.Print(connection.RemoteAddr(), " Password: ", string(password))
-			log.Print(connection.RemoteAddr(), " Attempts: ", triesPerIP[ipStr])
+			log.Print(conn.RemoteAddr(), " User: ", conn.User())
+			log.Print(conn.RemoteAddr(), " Password: ", string(password))
+			log.Print(conn.RemoteAddr(), " Attempts: ", triesPerIP[ipStr])
 
 			if *attempts == -1 || triesPerIP[ipStr] < *attempts {
-				return nil, fmt.Errorf("password rejected for %q", connection.User()) // fail auth
+				return nil, fmt.Errorf("password rejected for %q", conn.User()) // fail auth
 			}
 			return nil, nil // accept password
 		},
-		BannerCallback: func(connection ssh.ConnMetadata) string {
+		BannerCallback: func(conn ssh.ConnMetadata) string {
 			return *banner + "\n"
 		},
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			log.Print("PublicKey auth attempt type: ", key.Type())
+			log.Print(conn.RemoteAddr(), "PublicKey auth attempt type: ", key.Type())
 			return nil, nil // accept any public key
 		},
 	}
@@ -194,17 +195,17 @@ func handleConnection(conn net.Conn, serverConfig *ssh.ServerConfig) {
 }
 
 func handleChannel(newChannel ssh.NewChannel, conn net.Conn) {
-	log.Print("Channel type ", newChannel.ChannelType())
+	log.Print(conn.RemoteAddr(), "::Channel type ", newChannel.ChannelType())
 
 	if newChannel.ChannelType() == "direct-tcpip" {
-		log.Print("Rejecting direct-tcpip channel from ", conn.RemoteAddr())
+		log.Print(conn.RemoteAddr(), "::Rejecting direct-tcpip channel")
 		newChannel.Reject(ssh.Prohibited, "direct tcpip channels are not allowed")
 		return
 	}
 
 	channel, channelRequests, err := newChannel.Accept()
 	if err != nil {
-		log.Print("Failed to accept channel ", err.Error())
+		log.Print(conn.RemoteAddr(), " Failed to accept channel ", err.Error())
 		return
 	}
 	defer channel.Close()
@@ -215,7 +216,7 @@ func handleChannel(newChannel ssh.NewChannel, conn net.Conn) {
 			if request.Type == "exec" {
 				var payload execPayload
 				if err := ssh.Unmarshal(request.Payload, &payload); err != nil {
-					log.Print("Failed to unmarshal exec payload", err)
+					log.Print(conn.RemoteAddr(), " Failed to unmarshal exec payload", err)
 					str := base64.StdEncoding.EncodeToString(request.Payload)
 					log.Print(conn.RemoteAddr(), "::exec payload b64:\t", str)
 				} else {
@@ -228,7 +229,7 @@ func handleChannel(newChannel ssh.NewChannel, conn net.Conn) {
 			if request.WantReply {
 				err := request.Reply(true, nil)
 				if err != nil {
-					log.Print("Failed request reply ", err.Error())
+					log.Print(conn.RemoteAddr(), " Failed request reply ", err.Error())
 				}
 			}
 		}
